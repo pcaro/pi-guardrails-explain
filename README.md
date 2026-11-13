@@ -6,6 +6,7 @@ When [@aliou/pi-guardrails](https://github.com/aliou/pi-guardrails) flags a Bash
 
 ## Requirements
 
+- Node.js **22.19.0 or newer** (Pi 1.5.2's minimum supported Node version).
 - Pi 1.5.x (the extension API and model registry come from the Pi runtime).
 - `@aliou/pi-guardrails` **0.23.0 or newer** — decision delegation was added in 0.23.0; older Guardrails versions will not call the delegate.
 - At least one model authenticated in Pi (the active session model works by default).
