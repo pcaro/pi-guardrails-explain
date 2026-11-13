@@ -41,7 +41,7 @@ If a model request fails, the next candidate is tried; if none produces an expla
 ## Behavior
 
 - **Bash only.** Only Bash commands that Guardrails' permission gate already prompts you about reach the explainer. File/path-access prompts, PowerShell, and commands Guardrails does not flag are untouched.
-- **`[guardrails]` explanation line.** The explanation appears as the delegate reason in Guardrails' decision entry (for example `[guardrails] ? escalated: explain: …`). If no model produces an explanation in time, the entry shows a generic fallback reason instead, and Guardrails' ordinary prompt still appears.
+- **`[guardrails]` explanation line.** The explanation appears as the delegate reason in Guardrails' decision entry (for example `[guardrails] ? escalated: explain: …`). If all candidates fail before the shared deadline, the entry gets a generic fallback reason. If the deadline expires first, Guardrails marks the delegate as timed out. Both cases still show Guardrails' ordinary confirmation prompt.
 - **Always human.** The delegate always answers `ask`. The model only describes the command in a short Spanish line; it never decides. Guardrails' confirmation prompt still appears, and your answer is the only thing that allows or blocks the command.
 - **No session history.** The extension sends only the raw command text plus Guardrails' own flagged reason to the selected model. Conversation history is never transmitted.
 
@@ -71,7 +71,7 @@ npm run typecheck
 npm test
 ```
 
-`npm test` runs manifest and documentation checks that keep the package manifest installable and the docs consistent with the behavior above. Extension logic and its tests are added on top of this scaffold.
+`npm test` covers the package manifest and documentation, model selection, explanation fallback/formatting, and delegate registration and approval behavior.
 
 ## License
 

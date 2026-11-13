@@ -71,8 +71,16 @@ describe("README documentation", () => {
     expect(readme).toContain("raw command");
   });
 
-  it("documents the delegation deadline and timeoutMs option", () => {
+  it("distinguishes model failures from the Guardrails delegate timeout", () => {
+    expect(readme).toContain("all candidates fail before the shared deadline");
+    expect(readme).toContain("Guardrails marks the delegate as timed out");
     expect(readme).toContain("10 seconds");
     expect(readme).toContain('"timeoutMs"');
+  });
+
+  it("describes the implemented test coverage", () => {
+    expect(readme).toContain("model selection");
+    expect(readme).toContain("delegate registration and approval behavior");
+    expect(readme).not.toContain("Extension logic and its tests are added on top");
   });
 });
