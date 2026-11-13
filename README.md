@@ -41,7 +41,7 @@ If a model request fails, the next candidate is tried; if none produces an expla
 ## Behavior
 
 - **Bash only.** Only Bash commands that Guardrails' permission gate already prompts you about reach the explainer. File/path-access prompts, PowerShell, and commands Guardrails does not flag are untouched.
-- **`[guardrails]` explanation line.** The explanation appears as the delegate reason in Guardrails' decision entry (for example `[guardrails] ? escalated: pi-guardrails-explain: …`). If the model call fails or Guardrails' delegation deadline passes, the entry instead reports the timeout or failure and Guardrails' ordinary prompt still appears.
+- **`[guardrails]` explanation line.** The explanation appears as the delegate reason in Guardrails' decision entry (for example `[guardrails] ? escalated: explain: …`). If no model produces an explanation in time, the entry shows a generic fallback reason instead, and Guardrails' ordinary prompt still appears.
 - **Always human.** The delegate always answers `ask`. The model only describes the command in a short Spanish line; it never decides. Guardrails' confirmation prompt still appears, and your answer is the only thing that allows or blocks the command.
 - **No session history.** The extension sends only the raw command text plus Guardrails' own flagged reason to the selected model. Conversation history is never transmitted.
 
