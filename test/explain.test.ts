@@ -38,7 +38,7 @@ function assistantMessage(text: string, stopReason: AssistantMessage["stopReason
 interface CompleteCall {
 	model: Model<Api>;
 	context: Context;
-	options: { signal: AbortSignal; cacheRetention: string; sessionId: string };
+	options: { signal: AbortSignal; cacheRetention: string; sessionId: string; maxTokens: number };
 }
 
 type CompleteResult =
@@ -87,6 +87,32 @@ describe("explainCommand", () => {
 
 		expect(result).toBe("Fuerza el envío de commits al remoto.");
 		expect(calls).toHaveLength(1);
+	});
+
+	it("caps the request at 128 output tokens", async () => {
+		const { registry, calls } = fakeRegistry([
+			{ respond: assistantMessage("Explicación.") },
+		]);
+
+		await explainCommand(COMMAND, REASON, [m1], registry, new AbortController().signal);
+
+		expect(calls[0]!.options.maxTokens).toBe(128);
+	});
+
+	it("collapses a multiline response to a single line", async () => {
+		const { registry } = fakeRegistry([
+			{ respond: assistantMessage("Fuerza el envío\nde commits\n\n  al remoto.") },
+		]);
+
+		const result = await explainCommand(
+			COMMAND,
+			REASON,
+			[m1],
+			registry,
+			new AbortController().signal,
+		);
+
+		expect(result).toBe("Fuerza el envío de commits al remoto.");
 	});
 
 	it("sends only the command and flagged reason — no session history", async () => {

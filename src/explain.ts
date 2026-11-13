@@ -26,6 +26,7 @@ export interface ExplainModelRegistry {
 			signal: AbortSignal;
 			cacheRetention: "none";
 			sessionId: string;
+			maxTokens: number;
 		},
 	): Promise<AssistantMessage>;
 }
@@ -67,6 +68,11 @@ function responseText(response: AssistantMessage): string {
 		.trim();
 }
 
+/** Collapse all whitespace runs to single spaces so the answer is one line. */
+function singleLine(text: string): string {
+	return text.replace(/\s+/g, " ").trim();
+}
+
 /** Trim overlong output at a word boundary so the line stays readable. */
 function bounded(text: string): string {
 	if (text.length <= MAX_EXPLANATION_CHARS) {
@@ -102,7 +108,7 @@ export async function explainCommand(
 			response = await modelRegistry.complete(
 				model,
 				{ systemPrompt: SYSTEM_PROMPT, messages: [message] },
-				{ signal, cacheRetention: "none", sessionId: uuidv7() },
+				{ signal, cacheRetention: "none", sessionId: uuidv7(), maxTokens: 128 },
 			);
 		} catch {
 			continue;
@@ -116,7 +122,7 @@ export async function explainCommand(
 			continue;
 		}
 
-		const text = responseText(response);
+		const text = singleLine(responseText(response));
 		if (text.length > 0) {
 			return bounded(text);
 		}
