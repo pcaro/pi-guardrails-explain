@@ -34,9 +34,9 @@ Optional. Set `guardrailsExplain.models` in `~/.pi/agent/settings.json` to an or
 Candidates are tried in order:
 
 1. The configured specs, skipping any whose provider credentials are not configured in Pi.
-2. If no configured candidate is available — or the key is absent entirely — the **active session model** is used as the final fallback.
+2. The **active session model** is always tried last unless it is already in the list. If the setting is absent or none of its models is available, the active model is the only candidate.
 
-If a model request fails, the next candidate is tried; if none produces an explanation, Guardrails' ordinary confirmation prompt is shown unchanged.
+If a model request fails, the next candidate is tried. If all requests fail before Guardrails' deadline, the delegate returns its generic explanation fallback and the ordinary confirmation prompt still appears.
 
 ## Behavior
 
@@ -47,7 +47,7 @@ If a model request fails, the next candidate is tried; if none produces an expla
 
 ## Privacy
 
-The raw Bash command (and Guardrails' short risk reason) is sent to the provider of the selected model. Commands can contain secrets; if that is a concern, point `guardrailsExplain.models` at a local model, or remove the package with `pi remove git:github.com/pcaro/pi-guardrails-explain`. Nothing else about your session leaves the machine.
+The raw Bash command (and Guardrails' short risk reason) is sent to each provider the extension tries. Commands can contain secrets. `guardrailsExplain.models` is a preference list, not a provider allowlist: if every configured request fails, the active session model is tried last and may send the command to another provider. For a strict provider boundary, keep the active model within the approved provider set too, or remove the package with `pi remove git:github.com/pcaro/pi-guardrails-explain`. Nothing else about your session leaves the machine.
 
 ## Slow providers
 

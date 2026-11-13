@@ -50,10 +50,16 @@ describe("README documentation", () => {
     expect(readme).toMatch(/0\.23\.0 or newer/);
   });
 
-  it("documents the guardrailsExplain.models settings key", () => {
+  it("documents the guardrailsExplain.models settings key and fallback order", () => {
     expect(readme).toContain("guardrailsExplain.models");
     expect(readme).toContain("provider/modelId");
-    expect(readme).toContain("active session model");
+    expect(readme).toContain("always tried last unless it is already in the list");
+  });
+
+  it("warns that the active model can use a different provider", () => {
+    expect(readme).toContain("not a provider allowlist");
+    expect(readme).toContain("active session model is tried last");
+    expect(readme).toContain("strict provider boundary");
   });
 
   it("documents Bash-only scope and the [guardrails] explanation line", () => {
