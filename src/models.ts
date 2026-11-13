@@ -1,9 +1,12 @@
 /**
- * Ordered model candidate resolution for the Guardrails command explainer.
+ * Ordered model candidate and setting resolution for the Guardrails command explainer.
  *
- * Model preferences live in Pi settings under the extension's own key:
+ * Preferences live in Pi settings under the extension's own key:
  *
- *   "guardrailsExplain": { "models": ["provider/id", "bare-model-id"] }
+ *   "guardrailsExplain": {
+ *     "models": ["provider/id", "bare-model-id"],
+ *     "language": "English"
+ *   }
  *
  * Specs are tried in configured order; stale or unauthenticated entries are
  * skipped silently, and the active session model is the last resort so a
@@ -15,6 +18,9 @@
  */
 
 import type { Api, Model } from "@earendil-works/pi-ai";
+
+/** Default language requested in the explanation prompt. */
+export const DEFAULT_LANGUAGE = "English";
 
 /** Minimal settings access this module needs from the Pi extension API. */
 export interface SettingsSource {
@@ -35,17 +41,23 @@ export interface ModelRegistryLike {
 	hasConfiguredAuth(model: Model<Api>): boolean;
 }
 
-/** Ordered, trimmed, non-empty specs from settings: `guardrailsExplain.models`. */
-export function configuredModelSpecs(pi: SettingsSource): string[] {
+function guardrailsExplainSection(
+	pi: SettingsSource,
+): Record<string, unknown> | undefined {
 	const settings = pi.getSettings() as unknown;
 	if (typeof settings !== "object" || settings === null) {
-		return [];
+		return undefined;
 	}
 	const section = (settings as Record<string, unknown>).guardrailsExplain;
 	if (typeof section !== "object" || section === null) {
-		return [];
+		return undefined;
 	}
-	const specs = (section as Record<string, unknown>).models;
+	return section as Record<string, unknown>;
+}
+
+/** Ordered, trimmed, non-empty specs from settings: `guardrailsExplain.models`. */
+export function configuredModelSpecs(pi: SettingsSource): string[] {
+	const specs = guardrailsExplainSection(pi)?.models;
 	if (!Array.isArray(specs)) {
 		return [];
 	}
@@ -53,6 +65,16 @@ export function configuredModelSpecs(pi: SettingsSource): string[] {
 		.filter((spec): spec is string => typeof spec === "string")
 		.map((spec) => spec.trim())
 		.filter((spec) => spec.length > 0);
+}
+
+/** Normalized response language from `guardrailsExplain.language`, or `"English"`. */
+export function configuredLanguage(pi: SettingsSource): string {
+	const language = guardrailsExplainSection(pi)?.language;
+	if (typeof language !== "string") {
+		return DEFAULT_LANGUAGE;
+	}
+	const normalized = language.replace(/\s+/g, " ").trim();
+	return normalized.length > 0 ? normalized : DEFAULT_LANGUAGE;
 }
 
 /**

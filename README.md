@@ -19,14 +19,15 @@ pi install git:github.com/pcaro/pi-guardrails-explain
 
 Then start Pi (or run `/reload` in an existing session). There is no build step; the package ships plain TypeScript that Pi loads directly. To try it once without installing, use `pi -e git:github.com/pcaro/pi-guardrails-explain`.
 
-## Configure the explainer model
+## Configure the explainer model and language
 
-Optional. Set `guardrailsExplain.models` in `~/.pi/agent/settings.json` to an ordered list of `provider/modelId` candidates:
+Optional. Set `guardrailsExplain` in `~/.pi/agent/settings.json` with an ordered list of `provider/modelId` candidates and an optional response `language` (defaults to `"English"`):
 
 ```json
 {
   "guardrailsExplain": {
-    "models": ["provider-a/fast-model", "provider-b/small-model"]
+    "models": ["provider-a/fast-model", "provider-b/small-model"],
+    "language": "Spanish"
   }
 }
 ```
@@ -42,7 +43,8 @@ If a model request fails, the next candidate is tried. If all requests fail befo
 
 - **Bash only.** Only Bash commands that Guardrails' permission gate already prompts you about reach the explainer. File/path-access prompts, PowerShell, and commands Guardrails does not flag are untouched.
 - **`[guardrails]` explanation line.** The explanation appears as the delegate reason in Guardrails' decision entry (for example `[guardrails] ? escalated: explain: …`). If all candidates fail before the shared deadline, the entry gets a generic fallback reason. If the deadline expires first, Guardrails marks the delegate as timed out. Both cases still show Guardrails' ordinary confirmation prompt.
-- **Always human.** The delegate always answers `ask`. The model only describes the command in a short Spanish line; it never decides. Guardrails' confirmation prompt still appears, and your answer is the only thing that allows or blocks the command.
+- **Always human.** The delegate always answers `ask`. The model only describes the command in a short one-line summary in `guardrailsExplain.language` (default `"English"`); it never decides. Guardrails' confirmation prompt still appears, and your answer is the only thing that allows or blocks the command.
+- **Session cache.** Successful explanations are cached in memory for the current session (up to 64 commands, cleared on shutdown or reload) so repeated commands do not trigger duplicate model requests.
 - **No session history.** The extension sends only the raw command text plus Guardrails' own flagged reason to the selected model. Conversation history is never transmitted.
 
 ## Privacy

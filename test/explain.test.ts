@@ -35,10 +35,16 @@ function assistantMessage(text: string, stopReason: AssistantMessage["stopReason
 	} as AssistantMessage;
 }
 
-interface CompleteCall {
+interface StreamCall {
 	model: Model<Api>;
 	context: Context;
-	options: { signal: AbortSignal; cacheRetention: string; sessionId: string; maxTokens: number };
+	options: {
+		signal: AbortSignal;
+		cacheRetention: string;
+		sessionId: string;
+		maxTokens: number;
+		reasoning: string;
+	};
 }
 
 type CompleteResult =
@@ -47,18 +53,22 @@ type CompleteResult =
 
 /** Registry stub that scripts one `CompleteResult` per candidate, in order. */
 function fakeRegistry(results: CompleteResult[]) {
-	const calls: CompleteCall[] = [];
+	const calls: StreamCall[] = [];
 	const registry: ExplainModelRegistry = {
-		complete: async (model, context, options) => {
+		streamSimple: (model, context, options) => {
 			calls.push({ model, context, options });
 			const result = results[calls.length - 1];
-			if (!result) {
-				throw new Error("unexpected extra complete() call");
-			}
-			if ("throwWith" in result) {
-				throw result.throwWith ?? new Error("request failed");
-			}
-			return result.respond;
+			return {
+				result: async () => {
+					if (!result) {
+						throw new Error("unexpected extra streamSimple() call");
+					}
+					if ("throwWith" in result) {
+						throw result.throwWith ?? new Error("request failed");
+					}
+					return result.respond;
+				},
+			};
 		},
 	};
 	return { registry, calls };
@@ -89,14 +99,32 @@ describe("explainCommand", () => {
 		expect(calls).toHaveLength(1);
 	});
 
-	it("caps the request at 128 output tokens", async () => {
+	it("caps the request at 128 output tokens and disables reasoning", async () => {
 		const { registry, calls } = fakeRegistry([
-			{ respond: assistantMessage("Explicación.") },
+			{ respond: assistantMessage("Explanation.") },
 		]);
 
 		await explainCommand(COMMAND, REASON, [m1], registry, new AbortController().signal);
 
 		expect(calls[0]!.options.maxTokens).toBe(128);
+		expect(calls[0]!.options.reasoning).toBe("off");
+	});
+
+	it("instructs the model in English to reply in the requested language", async () => {
+		const { registry, calls } = fakeRegistry([
+			{ respond: assistantMessage("Explanation.") },
+			{ respond: assistantMessage("Explicación.") },
+		]);
+
+		await explainCommand(COMMAND, REASON, [m1], registry, new AbortController().signal);
+		await explainCommand(COMMAND, REASON, [m1], registry, new AbortController().signal, "Spanish");
+
+		expect(calls[0]!.context.systemPrompt).toContain(
+			"Reply with a single plain-text line in English",
+		);
+		expect(calls[1]!.context.systemPrompt).toContain(
+			"Reply with a single plain-text line in Spanish",
+		);
 	});
 
 	it("collapses a multiline response to a single line", async () => {
@@ -221,12 +249,18 @@ describe("explainCommand", () => {
 		const controller = new AbortController();
 		// The deadline fires while the first request is in flight; the registry
 		// surfaces it as a throw on that request only.
-		const calls: CompleteCall[] = [];
+		const calls: StreamCall[] = [];
 		const registry: ExplainModelRegistry = {
-			complete: async (model, context, options) => {
+			streamSimple: (model, context, options) => {
 				calls.push({ model, context, options });
-				await new Promise((resolve) => options.signal.addEventListener("abort", resolve));
-				throw new Error("request aborted");
+				return {
+					result: async () => {
+						await new Promise((resolve) =>
+							options.signal.addEventListener("abort", resolve),
+						);
+						throw new Error("request aborted");
+					},
+				};
 			},
 		};
 

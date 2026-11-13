@@ -2,7 +2,9 @@ import type { Api, Model } from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
 import {
 	candidateModels,
+	configuredLanguage,
 	configuredModelSpecs,
+	DEFAULT_LANGUAGE,
 	resolveModel,
 	type ModelRegistryLike,
 	type SettingsSource,
@@ -72,6 +74,28 @@ describe("configuredModelSpecs", () => {
 			"not an object",
 		]) {
 			expect(configuredModelSpecs(settingsPi(settings))).toEqual([]);
+		}
+	});
+});
+
+describe("configuredLanguage", () => {
+	it("returns the normalized configured language", () => {
+		const pi = settingsPi({
+			guardrailsExplain: { language: "  Spanish \n (Castilian)  " },
+		});
+		expect(configuredLanguage(pi)).toBe("Spanish (Castilian)");
+	});
+
+	it("defaults to English when missing, blank, or non-string", () => {
+		for (const settings of [
+			undefined,
+			{},
+			{ guardrailsExplain: {} },
+			{ guardrailsExplain: { language: "   \n  " } },
+			{ guardrailsExplain: { language: 42 } },
+			{ guardrailsExplain: null },
+		]) {
+			expect(configuredLanguage(settingsPi(settings))).toBe(DEFAULT_LANGUAGE);
 		}
 	});
 });

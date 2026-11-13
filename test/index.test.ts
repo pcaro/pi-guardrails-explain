@@ -1,7 +1,10 @@
 import type { Api, AssistantMessage, Context, Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
-import explainExtension, { NO_EXPLANATION_REASON } from "../index";
+import explainExtension, {
+	MAX_CACHE_ENTRIES,
+	NO_EXPLANATION_REASON,
+} from "../index";
 
 const REQUEST_EVENT = "guardrails:delegate:request";
 const REGISTER_EVENT = "guardrails:delegate:register";
@@ -132,10 +135,16 @@ function assistantMessage(text: string): AssistantMessage {
 	} as AssistantMessage;
 }
 
-interface CompleteCall {
+interface StreamCall {
 	model: Model<Api>;
 	context: Context;
-	options: { signal: AbortSignal; cacheRetention: string; sessionId: string; maxTokens: number };
+	options: {
+		signal: AbortSignal;
+		cacheRetention: string;
+		sessionId: string;
+		maxTokens: number;
+		reasoning: string;
+	};
 }
 
 type CompleteResult = { throwWith: unknown } | { text: string };
@@ -143,26 +152,34 @@ type CompleteResult = { throwWith: unknown } | { text: string };
 /**
  * Registry stub satisfying both candidate resolution and request execution:
  * `getAvailable`/`find`/`hasConfiguredAuth` for `candidateModels`, and
- * `complete` scripted with one `CompleteResult` per call, in order.
+ * `streamSimple` scripted with one `CompleteResult` per call, in order.
  */
 function fakeRegistry(models: Model<Api>[], results: CompleteResult[]) {
-	const calls: CompleteCall[] = [];
+	const calls: StreamCall[] = [];
 	let next = 0;
 	const registry = {
 		getAvailable: () => models,
 		find: (provider: string, id: string) =>
 			models.find((m) => m.provider === provider && m.id === id),
 		hasConfiguredAuth: (model: Model<Api>) => models.includes(model),
-		complete: async (model: Model<Api>, context: Context, options: CompleteCall["options"]) => {
+		streamSimple: (
+			model: Model<Api>,
+			context: Context,
+			options: StreamCall["options"],
+		) => {
 			calls.push({ model, context, options });
 			const result = results[next++];
-			if (!result) {
-				throw new Error("unexpected extra complete() call");
-			}
-			if ("throwWith" in result) {
-				throw result.throwWith;
-			}
-			return assistantMessage(result.text);
+			return {
+				result: async () => {
+					if (!result) {
+						throw new Error("unexpected extra streamSimple() call");
+					}
+					if ("throwWith" in result) {
+						throw result.throwWith;
+					}
+					return assistantMessage(result.text);
+				},
+			};
 		},
 	};
 	return { registry, calls };
@@ -367,5 +384,87 @@ describe("decision", () => {
 
 			expect(answer?.verdict, scenario.label).toBe("ask");
 		}
+	});
+
+	it("passes guardrailsExplain.language to the prompt", async () => {
+		const ext = loadPi({
+			guardrailsExplain: { models: ["a/one"], language: "Spanish" },
+		});
+		const delegate = ext.registeredDelegate();
+		const { registry, calls } = fakeRegistry([m1], [{ text: "Explicación." }]);
+
+		await delegate.decide(bashRequest(), delegationContext(registry));
+
+		expect(calls[0]!.context.systemPrompt).toContain(
+			"Reply with a single plain-text line in Spanish",
+		);
+	});
+
+	it("reuses cached explanations within a session and clears them on session_shutdown", async () => {
+		const ext = loadPi({ guardrailsExplain: { models: ["a/one"] } });
+		const delegate = ext.registeredDelegate();
+		const { registry, calls } = fakeRegistry(
+			[m1],
+			[{ text: "First explanation." }, { text: "After shutdown." }],
+		);
+
+		const first = await delegate.decide(bashRequest(), delegationContext(registry));
+		const second = await delegate.decide(bashRequest(), delegationContext(registry));
+
+		expect(first).toEqual({ verdict: "ask", reason: "First explanation." });
+		expect(second).toEqual({ verdict: "ask", reason: "First explanation." });
+		expect(calls).toHaveLength(1);
+
+		ext.fire("session_shutdown", { type: "session_shutdown", reason: "reload" });
+
+		const third = await delegate.decide(bashRequest(), delegationContext(registry));
+		expect(third).toEqual({ verdict: "ask", reason: "After shutdown." });
+		expect(calls).toHaveLength(2);
+	});
+
+	it("does not cache failed explanations", async () => {
+		const ext = loadPi({ guardrailsExplain: { models: ["a/one"] } });
+		const delegate = ext.registeredDelegate();
+		const { registry, calls } = fakeRegistry(
+			[m1],
+			[{ throwWith: new Error("transient") }, { text: "Recovered." }],
+		);
+
+		const failed = await delegate.decide(bashRequest(), delegationContext(registry));
+		const recovered = await delegate.decide(bashRequest(), delegationContext(registry));
+
+		expect(failed).toEqual({ verdict: "ask", reason: NO_EXPLANATION_REASON });
+		expect(recovered).toEqual({ verdict: "ask", reason: "Recovered." });
+		expect(calls).toHaveLength(2);
+	});
+
+	it("evicts the oldest cached command when exceeding MAX_CACHE_ENTRIES", async () => {
+		const ext = loadPi({ guardrailsExplain: { models: ["a/one"] } });
+		const delegate = ext.registeredDelegate();
+		const results = Array.from({ length: MAX_CACHE_ENTRIES + 2 }, (_, i) => ({
+			text: `Explanation ${i}`,
+		}));
+		const { registry, calls } = fakeRegistry([m1], results);
+
+		for (let i = 0; i <= MAX_CACHE_ENTRIES; i++) {
+			await delegate.decide(
+				bashRequest({ action: { kind: "command", command: `cmd-${i}` } }),
+				delegationContext(registry),
+			);
+		}
+		expect(calls).toHaveLength(MAX_CACHE_ENTRIES + 1);
+
+		// cmd-1 is still cached; cmd-0 was evicted and triggers a new request.
+		await delegate.decide(
+			bashRequest({ action: { kind: "command", command: "cmd-1" } }),
+			delegationContext(registry),
+		);
+		expect(calls).toHaveLength(MAX_CACHE_ENTRIES + 1);
+
+		await delegate.decide(
+			bashRequest({ action: { kind: "command", command: "cmd-0" } }),
+			delegationContext(registry),
+		);
+		expect(calls).toHaveLength(MAX_CACHE_ENTRIES + 2);
 	});
 });

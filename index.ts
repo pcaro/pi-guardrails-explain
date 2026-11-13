@@ -22,15 +22,21 @@
  *
  * The delegate abstains on everything that is not a Bash command flagged by
  * Guardrails' permission gate. For flagged Bash commands it answers `ask`,
- * with the model's one-line Spanish explanation as the reason, or a generic
- * fallback when no candidate produced an explanation. It never returns allow
- * or block — the decision stays with the human.
+ * with the model's one-line explanation as the reason, or a generic
+ * fallback when no candidate produced an explanation. Successful explanations
+ * are cached in memory for the current session so repeated commands do not
+ * re-query the provider. It never returns allow or block — the decision stays
+ * with the human.
  */
 
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { explainCommand, type ExplainModelRegistry } from "./src/explain";
-import { candidateModels, type ModelRegistryLike } from "./src/models";
+import {
+	candidateModels,
+	configuredLanguage,
+	type ModelRegistryLike,
+} from "./src/models";
 
 /** Guardrails asks delegates to (re)register on this channel. */
 const DELEGATE_REQUEST_EVENT = "guardrails:delegate:request";
@@ -42,9 +48,12 @@ const DELEGATE_ID = "explain-bash";
 /** Short roster name: Guardrails shows it in the `[guardrails]` entry. */
 const DELEGATE_NAME = "explain";
 
+/** Maximum cached explanations kept per session. */
+export const MAX_CACHE_ENTRIES = 64;
+
 /** Generic reason used when no candidate model produced an explanation. */
 export const NO_EXPLANATION_REASON =
-	"No se generó una explicación del comando; revísalo antes de aprobarlo.";
+	"Could not generate a command explanation; review the command before approving.";
 
 /** Structural contract of Guardrails' delegate answer (`DelegateAnswer`). */
 interface DelegateAnswer {
@@ -138,7 +147,7 @@ function isDelegationContext(
 	const registry = context.modelRegistry as Record<string, unknown> | undefined;
 	const signal = context.signal as AbortSignal | undefined;
 	return (
-		typeof registry?.complete === "function" &&
+		typeof registry?.streamSimple === "function" &&
 		typeof registry?.getAvailable === "function" &&
 		typeof registry?.find === "function" &&
 		typeof registry?.hasConfiguredAuth === "function" &&
@@ -161,6 +170,8 @@ function isDelegateRequestPayload(data: unknown): data is DelegateRequestPayload
 export default function (pi: ExtensionAPI): void {
 	/** Active session model, tracked because the delegation context has none. */
 	let activeModel: Model<Api> | undefined;
+	/** Bounded per-session cache of successful explanations. */
+	const cache = new Map<string, string>();
 
 	const delegate: GuardrailsDelegate = {
 		id: DELEGATE_ID,
@@ -171,6 +182,19 @@ export default function (pi: ExtensionAPI): void {
 				!isDelegationContext(context)
 			) {
 				return undefined;
+			}
+
+			const language = configuredLanguage(pi);
+			const key = JSON.stringify([
+				language,
+				request.action.command,
+				request.reason,
+			]);
+			const cached = cache.get(key);
+			if (cached !== undefined && !context.signal.aborted) {
+				cache.delete(key);
+				cache.set(key, cached);
+				return { verdict: "ask", reason: cached };
 			}
 
 			const candidates = candidateModels(
@@ -184,7 +208,18 @@ export default function (pi: ExtensionAPI): void {
 				candidates,
 				context.modelRegistry,
 				context.signal,
+				language,
 			);
+
+			if (explanation !== undefined) {
+				if (cache.size >= MAX_CACHE_ENTRIES) {
+					const oldest = cache.keys().next().value;
+					if (oldest !== undefined) {
+						cache.delete(oldest);
+					}
+				}
+				cache.set(key, explanation);
+			}
 
 			return {
 				verdict: "ask",
@@ -207,7 +242,10 @@ export default function (pi: ExtensionAPI): void {
 		delegate,
 	} satisfies DelegateRegisterPayload);
 
-	pi.on("session_shutdown", stopReplay);
+	pi.on("session_shutdown", () => {
+		stopReplay();
+		cache.clear();
+	});
 	pi.on("session_start", (_event, ctx) => {
 		activeModel = ctx.model;
 	});

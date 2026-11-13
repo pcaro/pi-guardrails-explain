@@ -50,10 +50,16 @@ describe("README documentation", () => {
     expect(readme).toMatch(/0\.23\.0 or newer/);
   });
 
-  it("documents the guardrailsExplain.models settings key and fallback order", () => {
-    expect(readme).toContain("guardrailsExplain.models");
+  it("documents the guardrailsExplain settings keys and fallback order", () => {
+    expect(readme).toContain("guardrailsExplain");
     expect(readme).toContain("provider/modelId");
+    expect(readme).toContain("guardrailsExplain.language");
     expect(readme).toContain("always tried last unless it is already in the list");
+  });
+
+  it("documents the in-memory session cache", () => {
+    expect(readme).toContain("Session cache");
+    expect(readme).toContain("64 commands");
   });
 
   it("warns that the active model can use a different provider", () => {
