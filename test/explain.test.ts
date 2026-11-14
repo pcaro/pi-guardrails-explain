@@ -1,4 +1,10 @@
-import type { Api, AssistantMessage, Context, Model } from "@earendil-works/pi-ai";
+import type {
+	Api,
+	AssistantMessage,
+	Context,
+	Model,
+	ModelsSimpleStreamOptions,
+} from "@earendil-works/pi-ai";
 import { describe, expect, it } from "vitest";
 import { explainCommand, type ExplainModelRegistry } from "../src/explain";
 
@@ -38,13 +44,7 @@ function assistantMessage(text: string, stopReason: AssistantMessage["stopReason
 interface StreamCall {
 	model: Model<Api>;
 	context: Context;
-	options: {
-		signal: AbortSignal;
-		cacheRetention: string;
-		sessionId: string;
-		maxTokens: number;
-		reasoning: string;
-	};
+	options: ModelsSimpleStreamOptions;
 }
 
 type CompleteResult =
@@ -55,7 +55,11 @@ type CompleteResult =
 function fakeRegistry(results: CompleteResult[]) {
 	const calls: StreamCall[] = [];
 	const registry: ExplainModelRegistry = {
-		streamSimple: (model, context, options) => {
+		streamSimple: (
+			model: Model<Api>,
+			context: Context,
+			options: ModelsSimpleStreamOptions,
+		) => {
 			calls.push({ model, context, options });
 			const result = results[calls.length - 1];
 			return {
@@ -99,7 +103,7 @@ describe("explainCommand", () => {
 		expect(calls).toHaveLength(1);
 	});
 
-	it("caps the request at 128 output tokens and disables reasoning", async () => {
+	it("caps the request at 128 output tokens and leaves reasoning unset", async () => {
 		const { registry, calls } = fakeRegistry([
 			{ respond: assistantMessage("Explanation.") },
 		]);
@@ -107,7 +111,7 @@ describe("explainCommand", () => {
 		await explainCommand(COMMAND, REASON, [m1], registry, new AbortController().signal);
 
 		expect(calls[0]!.options.maxTokens).toBe(128);
-		expect(calls[0]!.options.reasoning).toBe("off");
+		expect("reasoning" in calls[0]!.options).toBe(false);
 	});
 
 	it("instructs the model in English to reply in the requested language", async () => {
@@ -251,12 +255,16 @@ describe("explainCommand", () => {
 		// surfaces it as a throw on that request only.
 		const calls: StreamCall[] = [];
 		const registry: ExplainModelRegistry = {
-			streamSimple: (model, context, options) => {
+			streamSimple: (
+				model: Model<Api>,
+				context: Context,
+				options: ModelsSimpleStreamOptions,
+			) => {
 				calls.push({ model, context, options });
 				return {
 					result: async () => {
 						await new Promise((resolve) =>
-							options.signal.addEventListener("abort", resolve),
+							options.signal!.addEventListener("abort", resolve),
 						);
 						throw new Error("request aborted");
 					},

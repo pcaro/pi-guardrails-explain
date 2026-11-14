@@ -1,4 +1,10 @@
-import type { Api, AssistantMessage, Context, Model } from "@earendil-works/pi-ai";
+import type {
+	Api,
+	AssistantMessage,
+	Context,
+	Model,
+	ModelsSimpleStreamOptions,
+} from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 import explainExtension, {
@@ -138,13 +144,7 @@ function assistantMessage(text: string): AssistantMessage {
 interface StreamCall {
 	model: Model<Api>;
 	context: Context;
-	options: {
-		signal: AbortSignal;
-		cacheRetention: string;
-		sessionId: string;
-		maxTokens: number;
-		reasoning: string;
-	};
+	options: ModelsSimpleStreamOptions;
 }
 
 type CompleteResult = { throwWith: unknown } | { text: string };

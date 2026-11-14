@@ -7,9 +7,10 @@
  * framed as untrusted data: the prompt forbids following instructions
  * embedded in it, executing anything, or deciding authorization.
  *
- * Requests use `streamSimple` with `reasoning: "off"` so virtual models
- * (`pi/small`, `pi/default`) resolve and reasoning models do not spend the
- * 128-token output cap on internal thinking blocks.
+ * Requests go through `streamSimple`, which routes extension-registered
+ * virtual models (`pi/small`, `pi/default`) to the providers that registered
+ * them. The request omits `reasoning`, so each provider applies its own
+ * default; nothing here disables reasoning globally.
  *
  * Candidates are tried in order; a throw, an `error` stop reason, or an empty
  * response moves to the next model. An aborted shared signal (Guardrails'
@@ -18,7 +19,14 @@
  * caller's signal is the deadline, so 10s default and 60s hard cap hold.
  */
 
-import type { Api, AssistantMessage, Context, Model, Message } from "@earendil-works/pi-ai";
+import type {
+	Api,
+	AssistantMessage,
+	Context,
+	Message,
+	Model,
+	ModelsSimpleStreamOptions,
+} from "@earendil-works/pi-ai";
 import { uuidv7 } from "@earendil-works/pi-ai";
 import { DEFAULT_LANGUAGE } from "./models";
 
@@ -27,13 +35,7 @@ export interface ExplainModelRegistry {
 	streamSimple(
 		model: Model<Api>,
 		context: Context,
-		options: {
-			signal: AbortSignal;
-			cacheRetention: "none";
-			sessionId: string;
-			maxTokens: number;
-			reasoning: "off";
-		},
+		options?: ModelsSimpleStreamOptions,
 	): { result(): Promise<AssistantMessage> };
 }
 
@@ -125,7 +127,6 @@ export async function explainCommand(
 						cacheRetention: "none",
 						sessionId: uuidv7(),
 						maxTokens: 128,
-						reasoning: "off",
 					},
 				)
 				.result();
