@@ -86,13 +86,14 @@ describe("configuredLanguage", () => {
 		expect(configuredLanguage(pi)).toBe("Spanish (Castilian)");
 	});
 
-	it("defaults to English when missing, blank, or non-string", () => {
+	it("defaults to English when missing, blank, non-string, or overlong", () => {
 		for (const settings of [
 			undefined,
 			{},
 			{ guardrailsExplain: {} },
 			{ guardrailsExplain: { language: "   \n  " } },
 			{ guardrailsExplain: { language: 42 } },
+			{ guardrailsExplain: { language: "x".repeat(65) } },
 			{ guardrailsExplain: null },
 		]) {
 			expect(configuredLanguage(settingsPi(settings))).toBe(DEFAULT_LANGUAGE);

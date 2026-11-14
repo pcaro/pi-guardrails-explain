@@ -7,10 +7,9 @@
  * framed as untrusted data: the prompt forbids following instructions
  * embedded in it, executing anything, or deciding authorization.
  *
- * Requests go through `streamSimple`, which routes extension-registered
- * virtual models (`pi/small`, `pi/default`) to the providers that registered
- * them. The request omits `reasoning`, so each provider applies its own
- * default; nothing here disables reasoning globally.
+ * Requests go through `streamSimple` so extension-registered virtual models
+ * route through Pi. The request omits `reasoning` because `"off"` is not a
+ * valid request-level ThinkingLevel; provider adapters apply their defaults.
  *
  * Candidates are tried in order; a throw, an `error` stop reason, or an empty
  * response moves to the next model. An aborted shared signal (Guardrails'

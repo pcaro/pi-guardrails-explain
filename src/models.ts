@@ -21,6 +21,7 @@ import type { Api, Model } from "@earendil-works/pi-ai";
 
 /** Default language requested in the explanation prompt. */
 export const DEFAULT_LANGUAGE = "English";
+const MAX_LANGUAGE_CHARS = 64;
 
 /** Minimal settings access this module needs from the Pi extension API. */
 export interface SettingsSource {
@@ -74,7 +75,9 @@ export function configuredLanguage(pi: SettingsSource): string {
 		return DEFAULT_LANGUAGE;
 	}
 	const normalized = language.replace(/\s+/g, " ").trim();
-	return normalized.length > 0 ? normalized : DEFAULT_LANGUAGE;
+	return normalized.length > 0 && normalized.length <= MAX_LANGUAGE_CHARS
+		? normalized
+		: DEFAULT_LANGUAGE;
 }
 
 /**
