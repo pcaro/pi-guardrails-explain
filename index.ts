@@ -25,8 +25,9 @@
  * with the model's one-line explanation as the reason, or a generic
  * fallback when no candidate produced an explanation. Successful explanations
  * are cached in memory for the current session so repeated commands do not
- * re-query the provider. It never returns allow or block — the decision stays
- * with the human.
+ * re-query the provider. `/guardrails-explain [enable|disable]` toggles or
+ * sets the delegate's runtime `isEnabled()` state in memory without reloading.
+ * It never returns allow or block — the decision stays with the human.
  */
 
 import type { Api, Model } from "@earendil-works/pi-ai";
@@ -48,6 +49,10 @@ const DELEGATE_ID = "explain-bash";
 /** Short roster name: Guardrails shows it in the `[guardrails]` entry. */
 const DELEGATE_NAME = "explain";
 
+/** Slash command that toggles or sets the explainer at runtime. */
+export const EXPLAIN_COMMAND = "guardrails-explain";
+const COMMAND_SUBCOMMANDS = ["enable", "disable"] as const;
+
 /** Maximum cached explanations kept per session. */
 export const MAX_CACHE_ENTRIES = 64;
 
@@ -65,6 +70,7 @@ interface DelegateAnswer {
 interface GuardrailsDelegate {
 	id: string;
 	name: string;
+	isEnabled(): boolean;
 	decide(
 		request: DelegationRequest,
 		context: DelegationContext,
@@ -168,6 +174,8 @@ function isDelegateRequestPayload(data: unknown): data is DelegateRequestPayload
 }
 
 export default function (pi: ExtensionAPI): void {
+	/** Whether the delegate is active in the current session. */
+	let enabled = true;
 	/** Active session model, tracked because the delegation context has none. */
 	let activeModel: Model<Api> | undefined;
 	/** Bounded per-session cache of successful explanations. */
@@ -176,8 +184,10 @@ export default function (pi: ExtensionAPI): void {
 	const delegate: GuardrailsDelegate = {
 		id: DELEGATE_ID,
 		name: DELEGATE_NAME,
+		isEnabled: () => enabled,
 		decide: async (request, context) => {
 			if (
+				!enabled ||
 				!isBashPermissionGateRequest(request) ||
 				!isDelegationContext(context)
 			) {
@@ -251,5 +261,40 @@ export default function (pi: ExtensionAPI): void {
 	});
 	pi.on("model_select", (event) => {
 		activeModel = event.model;
+	});
+
+	pi.registerCommand(EXPLAIN_COMMAND, {
+		description:
+			"Enable or disable Guardrails Bash command explanations (/guardrails-explain [enable|disable])",
+		getArgumentCompletions: (prefix) => {
+			const normalized = prefix.trimStart().toLowerCase();
+			const items = COMMAND_SUBCOMMANDS.filter((sub) =>
+				sub.startsWith(normalized),
+			).map((sub) => ({ value: sub, label: sub }));
+			return items.length > 0 ? items : null;
+		},
+		handler: async (args, ctx) => {
+			const arg = args.trim().toLowerCase();
+			if (arg === "enable") {
+				enabled = true;
+			} else if (arg === "disable") {
+				enabled = false;
+			} else if (arg === "") {
+				enabled = !enabled;
+			} else {
+				ctx.ui.notify(
+					`Usage: /${EXPLAIN_COMMAND} [enable|disable]`,
+					"error",
+				);
+				return;
+			}
+
+			ctx.ui.notify(
+				enabled
+					? "Guardrails command explanations enabled."
+					: "Guardrails command explanations disabled.",
+				"info",
+			);
+		},
 	});
 }

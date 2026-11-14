@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
+const changelog = readFileSync(new URL("../CHANGELOG.md", import.meta.url), "utf8");
 
 const HOST_PROVIDED_PACKAGES = [
   "@earendil-works/pi-ai",
@@ -13,19 +14,29 @@ const HOST_PROVIDED_PACKAGES = [
 ];
 
 describe("package manifest", () => {
-  it("declares the Pi extension entry point", () => {
+  it("declares the Pi extension entry point and changelog path", () => {
     expect(packageJson.name).toBe("pi-guardrails-explain");
     expect(packageJson.type).toBe("module");
-    expect(packageJson.pi).toEqual({ extensions: ["./index.ts"] });
+    expect(packageJson.pi).toEqual({
+      extensions: ["./index.ts"],
+      changelogPath: "./CHANGELOG.md",
+    });
   });
 
   it("is eligible as a Pi package and installable from the tagged Git release", () => {
     expect(packageJson.keywords).toContain("pi-package");
-    expect(packageJson.version).toBe("0.1.0");
+    expect(packageJson.version).toBe("0.2.0");
+    expect(packageJson.files).toContain("CHANGELOG.md");
     expect(packageJson.files).toContain("index.ts");
     expect(packageJson.files).toContain("assets");
-    expect(readme).toContain("pi install git:github.com/pcaro/pi-guardrails-explain@v0.1.0");
-    expect(readme).toContain("pi -e git:github.com/pcaro/pi-guardrails-explain@v0.1.0");
+    expect(readme).toContain("pi install git:github.com/pcaro/pi-guardrails-explain@v0.2.0");
+    expect(readme).toContain("pi -e git:github.com/pcaro/pi-guardrails-explain@v0.2.0");
+  });
+
+  it("ships a CHANGELOG.md entry matching package.json version in Pi's heading format", () => {
+    const escapedVersion = String(packageJson.version).replaceAll(".", "\\.");
+    const headingPattern = new RegExp(`^##\\s+\\[?${escapedVersion}\\]?(?:\\s|$)`, "m");
+    expect(changelog).toMatch(headingPattern);
   });
 
   it("keeps the MIT license", () => {
@@ -66,9 +77,10 @@ describe("README documentation", () => {
     expect(readme).toContain("always tried last unless it is already in the list");
   });
 
-  it("documents the in-memory session cache", () => {
+  it("documents the in-memory session cache and runtime toggle command", () => {
     expect(readme).toContain("Session cache");
     expect(readme).toContain("64 commands");
+    expect(readme).toContain("/guardrails-explain");
   });
 
   it("warns that the active model can use a different provider", () => {

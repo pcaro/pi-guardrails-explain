@@ -8,6 +8,7 @@ import type {
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 import explainExtension, {
+	EXPLAIN_COMMAND,
 	MAX_CACHE_ENTRIES,
 	NO_EXPLANATION_REASON,
 } from "../index";
@@ -25,7 +26,19 @@ interface DelegateAnswer {
 interface Delegate {
 	id: string;
 	name: string;
+	isEnabled(): boolean;
 	decide(request: unknown, context: unknown): Promise<DelegateAnswer | undefined>;
+}
+
+interface RegisteredCommandStub {
+	description?: string;
+	getArgumentCompletions?: (
+		prefix: string,
+	) => { value: string; label: string }[] | null | Promise<{ value: string; label: string }[] | null>;
+	handler: (
+		args: string,
+		ctx: { ui: { notify: (message: string, type?: string) => void } },
+	) => Promise<void>;
 }
 
 /** Minimal synchronous event bus matching Pi's shared `EventBus`. */
@@ -61,12 +74,16 @@ type Bus = ReturnType<typeof createBus>;
 function loadPi(settings: unknown = {}) {
 	const events = createBus();
 	const handlers = new Map<string, Handler[]>();
+	const commands = new Map<string, RegisteredCommandStub>();
 	const registrations: unknown[] = [];
 	events.on(REGISTER_EVENT, (data) => registrations.push(data));
 
 	const pi = {
 		events,
 		getSettings: () => settings,
+		registerCommand(name: string, options: RegisteredCommandStub) {
+			commands.set(name, options);
+		},
 		on(event: string, handler: Handler) {
 			let list = handlers.get(event);
 			if (!list) {
@@ -89,6 +106,7 @@ function loadPi(settings: unknown = {}) {
 		events,
 		registrations,
 		handlers,
+		commands,
 		fire(event: string, payload: unknown = {}, ctx: unknown = {}): void {
 			for (const handler of [...(handlers.get(event) ?? [])]) {
 				handler(payload, ctx);
@@ -97,6 +115,19 @@ function loadPi(settings: unknown = {}) {
 		registeredDelegate(): Delegate {
 			expect(registrations.length).toBeGreaterThan(0);
 			return (registrations[0] as { delegate: Delegate }).delegate;
+		},
+		async runCommand(args = ""): Promise<{ message: string; type?: string }[]> {
+			const command = commands.get(EXPLAIN_COMMAND);
+			expect(command).toBeDefined();
+			const notifications: { message: string; type?: string }[] = [];
+			await command!.handler(args, {
+				ui: {
+					notify: (message, type) => {
+						notifications.push({ message, type });
+					},
+				},
+			});
+			return notifications;
 		},
 	};
 }
@@ -466,5 +497,98 @@ describe("decision", () => {
 			delegationContext(registry),
 		);
 		expect(calls).toHaveLength(MAX_CACHE_ENTRIES + 2);
+	});
+});
+
+describe("/guardrails-explain command", () => {
+	it("disables and re-enables the delegate at runtime without model calls while disabled", async () => {
+		const ext = loadPi({ guardrailsExplain: { models: ["a/one"] } });
+		const delegate = ext.registeredDelegate();
+		const { registry, calls } = fakeRegistry(
+			[m1],
+			[{ text: "Explicación activa." }],
+		);
+
+		expect(delegate.isEnabled()).toBe(true);
+
+		const disableNotes = await ext.runCommand("disable");
+		expect(delegate.isEnabled()).toBe(false);
+		expect(disableNotes).toEqual([
+			{ message: "Guardrails command explanations disabled.", type: "info" },
+		]);
+
+		const whileDisabled = await delegate.decide(
+			bashRequest(),
+			delegationContext(registry),
+		);
+		expect(whileDisabled).toBeUndefined();
+		expect(calls).toHaveLength(0);
+
+		const enableNotes = await ext.runCommand("  ENABLE ");
+		expect(delegate.isEnabled()).toBe(true);
+		expect(enableNotes).toEqual([
+			{ message: "Guardrails command explanations enabled.", type: "info" },
+		]);
+
+		const afterEnable = await delegate.decide(
+			bashRequest(),
+			delegationContext(registry),
+		);
+		expect(afterEnable).toEqual({
+			verdict: "ask",
+			reason: "Explicación activa.",
+		});
+		expect(calls).toHaveLength(1);
+	});
+
+	it("toggles the delegate when invoked without arguments", async () => {
+		const ext = loadPi();
+		const delegate = ext.registeredDelegate();
+
+		expect(delegate.isEnabled()).toBe(true);
+
+		const first = await ext.runCommand("");
+		expect(delegate.isEnabled()).toBe(false);
+		expect(first).toEqual([
+			{ message: "Guardrails command explanations disabled.", type: "info" },
+		]);
+
+		const second = await ext.runCommand("   ");
+		expect(delegate.isEnabled()).toBe(true);
+		expect(second).toEqual([
+			{ message: "Guardrails command explanations enabled.", type: "info" },
+		]);
+	});
+
+	it("reports usage and keeps the current state on unknown arguments", async () => {
+		const ext = loadPi();
+		const delegate = ext.registeredDelegate();
+
+		await ext.runCommand("disable");
+		expect(delegate.isEnabled()).toBe(false);
+
+		const notes = await ext.runCommand("nope");
+		expect(delegate.isEnabled()).toBe(false);
+		expect(notes).toEqual([
+			{ message: "Usage: /guardrails-explain [enable|disable]", type: "error" },
+		]);
+	});
+
+	it("completes enable and disable arguments", async () => {
+		const ext = loadPi();
+		const command = ext.commands.get(EXPLAIN_COMMAND);
+		expect(command?.getArgumentCompletions).toBeTypeOf("function");
+
+		expect(await command!.getArgumentCompletions!("")).toEqual([
+			{ value: "enable", label: "enable" },
+			{ value: "disable", label: "disable" },
+		]);
+		expect(await command!.getArgumentCompletions!("  en")).toEqual([
+			{ value: "enable", label: "enable" },
+		]);
+		expect(await command!.getArgumentCompletions!("dis")).toEqual([
+			{ value: "disable", label: "disable" },
+		]);
+		expect(await command!.getArgumentCompletions!("other")).toBeNull();
 	});
 });
