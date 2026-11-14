@@ -19,10 +19,13 @@ describe("package manifest", () => {
     expect(packageJson.pi).toEqual({ extensions: ["./index.ts"] });
   });
 
-  it("is eligible as a Pi package and installable from GitHub", () => {
+  it("is eligible as a Pi package and installable from the tagged Git release", () => {
     expect(packageJson.keywords).toContain("pi-package");
+    expect(packageJson.version).toBe("0.1.0");
     expect(packageJson.files).toContain("index.ts");
-    expect(readme).toContain("pi install git:github.com/pcaro/pi-guardrails-explain");
+    expect(packageJson.files).toContain("assets");
+    expect(readme).toContain("pi install git:github.com/pcaro/pi-guardrails-explain@v0.1.0");
+    expect(readme).toContain("pi -e git:github.com/pcaro/pi-guardrails-explain@v0.1.0");
   });
 
   it("keeps the MIT license", () => {
@@ -59,6 +62,7 @@ describe("README documentation", () => {
     expect(readme).toContain("guardrailsExplain");
     expect(readme).toContain("provider/modelId");
     expect(readme).toContain("guardrailsExplain.language");
+    expect(readme).toContain("longer than 64 characters");
     expect(readme).toContain("always tried last unless it is already in the list");
   });
 

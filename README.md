@@ -16,14 +16,14 @@ When [@aliou/pi-guardrails](https://github.com/aliou/pi-guardrails) flags a Bash
 ## Install
 
 ```bash
-pi install git:github.com/pcaro/pi-guardrails-explain
+pi install git:github.com/pcaro/pi-guardrails-explain@v0.1.0
 ```
 
-Then start Pi (or run `/reload` in an existing session). There is no build step; the package ships plain TypeScript that Pi loads directly. To try it once without installing, use `pi -e git:github.com/pcaro/pi-guardrails-explain`.
+Then start Pi (or run `/reload` in an existing session). There is no build step; the package ships plain TypeScript that Pi loads directly. To try it once without installing, use `pi -e git:github.com/pcaro/pi-guardrails-explain@v0.1.0`.
 
 ## Configure the explainer model and language
 
-Optional. Set `guardrailsExplain` in `~/.pi/agent/settings.json` with an ordered list of `provider/modelId` candidates and an optional response `language` (defaults to `"English"`):
+Optional. Set `guardrailsExplain` in `~/.pi/agent/settings.json` with an ordered list of `provider/modelId` candidates and an optional response `language` (defaults to `"English"`; values longer than 64 characters also use English):
 
 ```json
 {

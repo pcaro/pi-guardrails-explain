@@ -21,6 +21,7 @@
   "files": [
     "index.ts",
     "src",
+    "assets",
     "!**/*.test.ts"
   ],
   "peerDependencies": {
