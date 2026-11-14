@@ -4,6 +4,8 @@ Pi extension that explains Guardrails-gated Bash commands before you approve or 
 
 When [@aliou/pi-guardrails](https://github.com/aliou/pi-guardrails) flags a Bash command for human confirmation, this extension asks a chat model for a one-line explanation of what the command does and shows it in Guardrails' `[guardrails]` decision entry before the usual confirmation prompt. The decision is always yours: the extension never allows or blocks a command.
 
+![pi-guardrails-explain screenshot](./assets/screenshot.svg)
+
 ## Requirements
 
 - Node.js **22.19.0 or newer** (Pi 1.5.2's minimum supported Node version).

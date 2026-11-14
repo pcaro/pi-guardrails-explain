@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
@@ -46,6 +46,11 @@ describe("package manifest", () => {
 });
 
 describe("README documentation", () => {
+  it("includes the example screenshot", () => {
+    expect(readme).toContain("![pi-guardrails-explain screenshot](./assets/screenshot.svg)");
+    expect(existsSync(new URL("../assets/screenshot.svg", import.meta.url))).toBe(true);
+  });
+
   it("documents the Guardrails 0.23.0 minimum", () => {
     expect(readme).toMatch(/0\.23\.0 or newer/);
   });

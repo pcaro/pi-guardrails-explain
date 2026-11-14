@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 356" width="920" height="356" role="img" aria-label="Pi terminal showing Guardrails explanation line and permission prompt for a flagged Bash command">
+  <defs>
+    <style>
+      .mono {
+        font-family: "JetBrains Mono", "Fira Code", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 13.5px;
+        xml:space: preserve;
+      }
+      .bold { font-weight: 700; }
+      .text { fill: #dee0e1; }
+      .muted { fill: #9da5a9; }
+      .dim { fill: #7e888e; }
+      .accent { fill: #a798d7; }
+      .warning { fill: #cd9a22; }
+      .error { fill: #ea7f81; }
+    </style>
+  </defs>
+
+  <!-- Outer frame -->
+  <rect width="920" height="356" rx="10" fill="#181b20" stroke="#34383a" stroke-width="1.5"/>
+
+  <!-- Terminal title bar -->
+  <rect x="1" y="1" width="918" height="36" rx="9" fill="#21252c"/>
+  <rect x="1" y="28" width="918" height="9" fill="#21252c"/>
+  <line x1="1" y1="37" x2="919" y2="37" stroke="#2d323b" stroke-width="1"/>
+  <circle cx="22" cy="19" r="6" fill="#ea7f81"/>
+  <circle cx="42" cy="19" r="6" fill="#cd9a22"/>
+  <circle cx="62" cy="19" r="6" fill="#68b78d"/>
+  <text x="460" y="24" text-anchor="middle" class="mono dim">pi — bash permission gate</text>
+
+  <!-- Pending Bash tool call card -->
+  <rect x="20" y="52" width="880" height="34" rx="4" fill="#34383a"/>
+  <text x="32" y="74" class="mono"><tspan class="bold text">$ rm -rf ./dist ./build</tspan></text>
+
+  <!-- [guardrails] decision entry from pi-guardrails-explain -->
+  <text x="28" y="112" class="mono"><tspan class="accent">[guardrails]</tspan> <tspan class="warning">? escalated:</tspan> <tspan class="muted">explain</tspan><tspan class="text">: Recursively deletes ./dist and ./build and all their contents.</tspan> <tspan class="dim">· 340ms</tspan></text>
+
+  <!-- Guardrails permission-gate confirmation component -->
+  <line x1="20" y1="134" x2="900" y2="134" stroke="#ea7f81" stroke-width="1.5"/>
+
+  <text x="28" y="158" class="mono bold error">Dangerous Command Detected</text>
+
+  <text x="28" y="190" class="mono warning">This command contains recursive force delete:</text>
+
+  <line x1="20" y1="210" x2="900" y2="210" stroke="#7e888e" stroke-width="1"/>
+  <text x="28" y="232" class="mono"><tspan class="dim"> 1</tspan> <tspan class="text">rm -rf ./dist ./build</tspan></text>
+  <line x1="20" y1="246" x2="900" y2="246" stroke="#7e888e" stroke-width="1"/>
+
+  <text x="28" y="276" class="mono text">Allow execution?</text>
+
+  <text x="28" y="308" class="mono dim">↑/↓ or j/k: scroll • y/enter: allow • a: session • n/esc: deny • s: decline &amp; stop</text>
+
+  <line x1="20" y1="328" x2="900" y2="328" stroke="#ea7f81" stroke-width="1.5"/>
+</svg>
